@@ -13,9 +13,9 @@ class PointModel {
   }
 
   Map<String, dynamic> toJson() {
-    final Map<String, dynamic> data = new Map<String, dynamic>();
-    data['Width'] = this.width;
-    data['Child'] = this.child;
+    final Map<String, dynamic> data = <String, dynamic>{};
+    data['Width'] = width;
+    data['Child'] = child;
     return data;
   }
 }

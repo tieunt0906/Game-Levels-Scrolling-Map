@@ -24,6 +24,7 @@ class _MapHorizontalExampleState extends State<MapHorizontalExample> {
 
   @override
   void initState() {
+    super.initState();
     fillTestData();
   }
 

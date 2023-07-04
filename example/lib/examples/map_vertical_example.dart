@@ -10,37 +10,35 @@ class MapVerticalExample extends StatefulWidget {
 }
 
 class _MapVerticalExampleState extends State<MapVerticalExample> {
-
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: Container(
           child: GameLevelsScrollingMap.scrollable(
-            imageUrl:"assets/drawable/map_vertical.png",
-            direction: Axis.vertical,
-            reverseScrolling: true,
-            pointsPositionDeltaX: 25,
-            pointsPositionDeltaY: 25,
-            svgUrl: 'assets/svg/map_vertical.svg',
-            points: points,)
-      ), // This trailing comma makes auto-formatting nicer for build methods.
+        imageUrl: "assets/drawable/map_vertical.png",
+        direction: Axis.vertical,
+        reverseScrolling: true,
+        pointsPositionDeltaX: 25,
+        pointsPositionDeltaY: 25,
+        svgUrl: 'assets/svg/map_vertical.svg',
+        points: points,
+      )), // This trailing comma makes auto-formatting nicer for build methods.
     );
   }
 
   @override
   void initState() {
+    super.initState();
     fillTestData();
   }
 
   List<PointModel> points = [];
 
   void fillTestData() {
-    for(int i = 0; i<100 ; i++){
-      points.add(PointModel(100,testWidget(i)));
+    for (int i = 0; i < 100; i++) {
+      points.add(PointModel(100, testWidget(i)));
     }
   }
-
 
   Widget testWidget(int order) {
     return InkWell(
@@ -53,8 +51,7 @@ class _MapVerticalExampleState extends State<MapVerticalExample> {
             width: 50,
           ),
           Text("$order",
-              style: const TextStyle(color: Colors.black,
-                  fontSize: 15))
+              style: const TextStyle(color: Colors.black, fontSize: 15))
         ],
       ),
       onTap: () {
