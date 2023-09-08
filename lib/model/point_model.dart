@@ -18,4 +18,17 @@ class PointModel {
     data['Child'] = child;
     return data;
   }
+
+  @override
+  bool operator ==(covariant PointModel other) {
+    return width == other.width && isCurrent == other.isCurrent;
+  }
+
+  @override
+  int get hashCode => Object.hashAll(
+        [
+          width,
+          isCurrent,
+        ],
+      );
 }

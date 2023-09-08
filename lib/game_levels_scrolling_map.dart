@@ -3,13 +3,20 @@ library game_levels_scrolling_map;
 import 'dart:async';
 import 'dart:ui' as ui show Image;
 
+import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:xml/xml.dart';
 
 import '../helper/utils.dart';
 import 'config/q.dart';
+import 'helper/debug_print.dart';
 import 'model/point_model.dart';
 import 'widgets/loading_progress.dart';
+
+typedef OnMapFilledCallback = Function(
+  List<Offset> positions,
+  List<double> scrollOffsets,
+);
 
 class GameLevelsScrollingMap extends StatefulWidget {
   final double? height;
@@ -33,10 +40,16 @@ class GameLevelsScrollingMap extends StatefulWidget {
   final bool isScrollable;
   final Axis direction;
   final bool reverseScrolling;
+  final ScrollPhysics? physics;
 
   final Widget? backgroundImageWidget;
   final Color? bgColor;
   final Duration scrollDuration;
+  final EdgeInsets padding;
+  final bool scrollToCurrent;
+  final ScrollController? scrollController;
+  final OnMapFilledCallback? onMapFilled;
+  final Widget? maskWidget;
 
   const GameLevelsScrollingMap({
     super.key,
@@ -54,11 +67,16 @@ class GameLevelsScrollingMap extends StatefulWidget {
     this.pointsPositionDeltaY = 0,
     this.currentPointDeltaY,
     this.backgroundImageWidget,
-    this.isScrollable = false,
     this.reverseScrolling = false,
+    this.physics,
     this.bgColor,
-    this.scrollDuration = const Duration(milliseconds: 1000),
-  });
+    this.padding = EdgeInsets.zero,
+    this.onMapFilled,
+    this.maskWidget,
+  })  : isScrollable = false,
+        scrollDuration = Duration.zero,
+        scrollToCurrent = false,
+        scrollController = null;
 
   const GameLevelsScrollingMap.scrollable({
     super.key,
@@ -76,26 +94,42 @@ class GameLevelsScrollingMap extends StatefulWidget {
     this.pointsPositionDeltaX = 0,
     this.pointsPositionDeltaY = 0,
     this.reverseScrolling = false,
+    this.physics,
     this.backgroundImageWidget,
-    this.isScrollable = true,
     this.bgColor,
     this.scrollDuration = const Duration(milliseconds: 1000),
-  });
+    this.padding = EdgeInsets.zero,
+    this.scrollToCurrent = true,
+    this.scrollController,
+    this.onMapFilled,
+    this.maskWidget,
+  }) : isScrollable = true;
 
   @override
   _GameLevelsScrollingMapState createState() => _GameLevelsScrollingMapState();
 }
 
 class _GameLevelsScrollingMapState extends State<GameLevelsScrollingMap> {
-  final List<double> _newXValues = [];
+  List<double> _newXValues = [];
+  List<double> _newYValues = [];
   List<double> _xValues = [];
   List<double> _yValues = [];
   double _height = 0;
   double _width = 0;
 
+  ScrollController? _scrollController;
+  Key? _key;
+  List<Widget> widgets = [];
+
   @override
   void initState() {
     super.initState();
+
+    _key = widget.key ?? GlobalKey();
+
+    if (widget.isScrollable) {
+      _scrollController = widget.scrollController ?? ScrollController();
+    }
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       initDeviceDimensions();
@@ -105,25 +139,51 @@ class _GameLevelsScrollingMapState extends State<GameLevelsScrollingMap> {
         await _getPathFromSVG();
       }
       await _loadImage(path: widget.imageUrl);
-      if (widget.isScrollable) {
-        int currentIndex =
-            widget.points!.indexWhere((point) => point.isCurrent!);
-        if (currentIndex != -1 && _newXValues.isNotEmpty) {
-          _scrollController.animateTo(
-            _newXValues[currentIndex],
-            duration: widget.scrollDuration,
-            curve: Curves.easeIn,
-          );
-        }
-      }
+      animateToPosition();
     });
+  }
+
+  @override
+  void didUpdateWidget(covariant GameLevelsScrollingMap oldWidget) {
+    if (const IterableEquality().equals(
+      widget.points,
+      oldWidget.points,
+    )) {
+      _newXValues.clear();
+      _newYValues.clear();
+
+      widgets.clear();
+      widgets.add(backgroundImage());
+      drawPoints();
+    }
+
+    super.didUpdateWidget(oldWidget);
+  }
+
+  void animateToPosition() {
+    if (!widget.scrollToCurrent ||
+        !widget.isScrollable ||
+        widget.points == null) return;
+
+    final currentIndex =
+        widget.points!.indexWhere((point) => point.isCurrent ?? false);
+    final points =
+        widget.direction == Axis.vertical ? _newYValues : _newXValues;
+
+    if (currentIndex == -1 || currentIndex >= points.length) return;
+
+    _scrollController?.animateTo(
+      points[currentIndex],
+      duration: widget.scrollDuration,
+      curve: Curves.easeIn,
+    );
   }
 
   void initDeviceDimensions() {
     Q.deviceWidth = MediaQuery.of(context).size.width;
     Q.deviceHeight = MediaQuery.of(context).size.height;
 
-    print('${Q.TAG} Device Dimensions : ${Q.deviceWidth} x ${Q.deviceHeight}');
+    '${Q.TAG} Device Dimensions : ${Q.deviceWidth} x ${Q.deviceHeight}'.log();
   }
 
   void initDefaults() {
@@ -139,12 +199,8 @@ class _GameLevelsScrollingMapState extends State<GameLevelsScrollingMap> {
       _width = Q.deviceWidth;
     }
 
-    print('widget.height : $_height');
+    'widget.height : $_height'.log();
   }
-
-  final _scrollController = ScrollController();
-  final _key = GlobalKey();
-  List<Widget> widgets = [];
 
   @override
   Widget build(BuildContext context) {
@@ -156,6 +212,8 @@ class _GameLevelsScrollingMapState extends State<GameLevelsScrollingMap> {
       height: maxHeight,
       child: widget.isScrollable
           ? SingleChildScrollView(
+              padding: widget.padding,
+              physics: widget.physics,
               controller: _scrollController,
               scrollDirection: widget.direction,
               reverse: widget.reverseScrolling,
@@ -171,7 +229,14 @@ class _GameLevelsScrollingMapState extends State<GameLevelsScrollingMap> {
       child: LayoutBuilder(
         builder: (BuildContext context, BoxConstraints constraints) {
           return imageWidth != 0
-              ? Stack(textDirection: TextDirection.ltr, children: widgets)
+              ? Stack(
+                  textDirection: TextDirection.ltr,
+                  clipBehavior: Clip.none,
+                  children: [
+                    ...widgets,
+                    if (widget.maskWidget != null) widget.maskWidget!,
+                  ],
+                )
               : const LoadingProgress();
         },
       ),
@@ -220,8 +285,8 @@ class _GameLevelsScrollingMapState extends State<GameLevelsScrollingMap> {
     imageWidth = widget.imageWidth ?? image!.width.toDouble();
     imageHeight = widget.imageHeight ?? image!.height.toDouble();
 
-    print('${Q.TAG} image path : ${widget.imageUrl}');
-    print('${Q.TAG} image dimensions : $imageWidth x $imageHeight');
+    '${Q.TAG} image path : ${widget.imageUrl}'.log();
+    '${Q.TAG} image dimensions : $imageWidth x $imageHeight'.log();
 
     aspectRatio = imageWidth / imageHeight;
 
@@ -238,10 +303,11 @@ class _GameLevelsScrollingMapState extends State<GameLevelsScrollingMap> {
       maxHeight = maxWidth / aspectRatio;
     }
 
-    print(
-        '${Q.TAG} image all dimensions : $imageWidth : $imageHeight : $aspectRatio');
-    print(
-        '${Q.TAG} image new dimensions : $maxWidth : $maxHeight : $aspectRatio');
+    '${Q.TAG} image all dimensions : $imageWidth : $imageHeight : $aspectRatio'
+        .log();
+
+    '${Q.TAG} image new dimensions : $maxWidth : $maxHeight : $aspectRatio'
+        .log();
 
     widgets.add(backgroundImage());
     drawPoints();
@@ -270,18 +336,21 @@ class _GameLevelsScrollingMapState extends State<GameLevelsScrollingMap> {
   }
 
   void drawPoints() {
-    double halfScreenSize = (MediaQuery.of(context).size.width) / 2;
-    print('${Q.TAG} maxWidth / imageWidth : ${maxWidth / imageWidth}');
-    print('${Q.TAG} maxHeight / imageHeight : ${maxHeight / imageHeight}');
+    double halfScreenWidth = (MediaQuery.of(context).size.width) / 2;
+    double halfScreenHeight = (MediaQuery.of(context).size.height) / 2;
+
+    '${Q.TAG} maxWidth / imageWidth : ${maxWidth / imageWidth}'.log();
+    '${Q.TAG} maxHeight / imageHeight : ${maxHeight / imageHeight}'.log();
+
+    List<Offset> positions = [];
 
     for (int i = 0; i < widget.points!.length; i++) {
-      //widget.points!.add(PointModel(100, testWidget(i)));
       if (_xValues.length > i) {
         var x =
             (_xValues[i] * maxWidth / imageWidth) + widget.pointsPositionDeltaX;
 
         x = x - (widget.points![i].width! / 2);
-        _newXValues.add((x - halfScreenSize).abs());
+        _newXValues.add((x - halfScreenWidth).abs());
 
         var y = ((_yValues[i] * maxHeight / imageHeight) +
             widget.pointsPositionDeltaY);
@@ -289,14 +358,27 @@ class _GameLevelsScrollingMapState extends State<GameLevelsScrollingMap> {
           y = y - widget.currentPointDeltaY!;
         }
         y = y - (widget.points![i].width! / 2);
+        _newYValues.add((y - halfScreenHeight).abs());
 
-        print(
-            '${Q.TAG} old x,y : ${_xValues[i]},${_yValues[i]} ## new x,y : $x,$y');
+        '${Q.TAG} old x,y : ${_xValues[i]},${_yValues[i]} ## new x,y : $x,$y'
+            .log();
+
+        positions.add(Offset(x, y));
         widgets.add(pointWidget(x, y, child: widget.points![i].child));
       } else {
         break;
       }
     }
+
+    if (widget.reverseScrolling) {
+      _newXValues = _newXValues.reversed.toList();
+      _newYValues = _newYValues.reversed.toList();
+    }
+
+    final scrollOffsets =
+        widget.direction == Axis.horizontal ? _newXValues : _newYValues;
+
+    widget.onMapFilled?.call(positions, scrollOffsets);
   }
 
   Widget pointWidget(double x, double y, {Widget? child}) {
@@ -312,7 +394,7 @@ class _GameLevelsScrollingMapState extends State<GameLevelsScrollingMap> {
   Future _getPathFromSVG() async {
     await getPointsPathFromXML().then((value) {
       _pathSVG = value.replaceAll(',', ' ');
-      print('pathSVG : $_pathSVG');
+      'pathSVG : $_pathSVG'.log();
       List<String> arrayOfPoints = _pathSVG!.split(' ');
       for (int i = 0; i < arrayOfPoints.length; i++) {
         if (i % 2 == 0) {
