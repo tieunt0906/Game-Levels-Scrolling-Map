@@ -9,7 +9,6 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  xml: ^6.3.0
   path_provider: ^2.0.15
   collection: ^1.17.1
 

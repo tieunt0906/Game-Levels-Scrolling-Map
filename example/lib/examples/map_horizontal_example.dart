@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:game_levels_scrolling_map/game_levels_scrolling_map.dart';
 import 'package:game_levels_scrolling_map/model/point_model.dart';
+import 'package:game_levels_scrolling_map_example/get_list_point_model.dart';
 
 class MapHorizontalExample extends StatefulWidget {
   const MapHorizontalExample({Key? key}) : super(key: key);
@@ -14,11 +15,14 @@ class _MapHorizontalExampleState extends State<MapHorizontalExample> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: Container(
-          child: GameLevelsScrollingMap.scrollable(
-        imageUrl: "assets/drawable/map_horizontal.png",
-        svgUrl: "assets/svg/map_horizontal.svg",
-        points: points,
-      )), // This trailing comma makes auto-formatting nicer for build methods.
+        child: GameLevelsScrollingMap.scrollable(
+          imageUrl: "assets/drawable/map_horizontal.png",
+          points: points,
+          pointBuilder: (context, point, index) {
+            return testWidget(index);
+          },
+        ),
+      ),
     );
   }
 
@@ -31,9 +35,9 @@ class _MapHorizontalExampleState extends State<MapHorizontalExample> {
   List<PointModel> points = [];
 
   void fillTestData() {
-    for (int i = 0; i < 50; i++) {
-      points.add(PointModel(100, testWidget(i)));
-    }
+    final data =
+        '24.26 381.2 306.13 381.2 193.79 176.95 455.23 66.65 755.49 119.76 532.85 516.01 851.49 562.99 882.13 403.67 1411.15 366.9 1290.64 176.95 1874.81 136.1 1631.74 509.88 1954.47 562.99 1989.19 407.76 2150.55 385.29';
+    points = getListPointModel(data);
   }
 
   Widget testWidget(int order) {

@@ -1,32 +1,29 @@
-import 'package:flutter/material.dart';
-
 class PointModel {
-  double? width;
-  Widget? child;
-  bool? isCurrent;
+  final double top;
+  final double left;
+  final double width;
+  final bool isCurrent;
 
-  PointModel(this.width, this.child, {this.isCurrent = false});
-
-  PointModel.fromJson(Map<String, dynamic> json) {
-    width = json['Width'];
-    child = json['Child'];
-  }
-
-  Map<String, dynamic> toJson() {
-    final Map<String, dynamic> data = <String, dynamic>{};
-    data['Width'] = width;
-    data['Child'] = child;
-    return data;
-  }
+  PointModel({
+    required this.top,
+    required this.left,
+    required this.width,
+    this.isCurrent = false,
+  });
 
   @override
   bool operator ==(covariant PointModel other) {
-    return width == other.width && isCurrent == other.isCurrent;
+    return top == other.top &&
+        left == other.left &&
+        width == other.width &&
+        isCurrent == other.isCurrent;
   }
 
   @override
   int get hashCode => Object.hashAll(
         [
+          top,
+          left,
           width,
           isCurrent,
         ],
